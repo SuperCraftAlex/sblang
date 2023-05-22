@@ -154,6 +154,11 @@ public class Main {
                 }
             } else if (code.equals("s")) { // pushes the size of the stack onto the stack
                 stack.push((float) stack.size());
+            } else if (code.equals("sw")) { // swaps the top 2 elements on the stack
+                float first = stack.pop();
+                float second = stack.pop();
+                stack.push(first);
+                stack.push(second);
             } else if (code.equals("+")) { // arg1=pop()  arg2=pop()  push(arg1+arg2)
                 float a = stack.pop();
                 float b = stack.pop();
