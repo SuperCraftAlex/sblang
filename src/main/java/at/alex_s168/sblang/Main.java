@@ -125,8 +125,8 @@ public class Main {
             } else if (code.equals(".c")) { // print and pop one element from stack as string
                 System.out.print((char) (float) stack.pop());
             } else if (code.equals("__")) { // dump stack (peek all)
-                while (!stack.isEmpty()) {
-                    System.out.println(stack.peek());
+                for (int i = stack.size()-1; i > -1; i--) {
+                    System.out.println(stack.elementAt(i));
                 }
             } else if (code.equals("_")) { // print and pop stack[-1] elements from the stack
                 int amount = (int) (float) stack.pop();
@@ -218,6 +218,8 @@ public class Main {
                     error("Code block with id " + id + " does not exist!");
                 assert c != null;
                 tointerpret = c;
+
+                return;
             } else if (code.equals("<*")) { // jump to the code block with the id x (x is stack[-1] popped) as subroutine IF the condition flag is true
                 if(!flag_condition)
                     continue;
@@ -232,6 +234,8 @@ public class Main {
                     error("Code block with id " + id + " does not exist!");
                 assert c != null;
                 interpret(c);
+
+                return;
             } else if (code.chars().allMatch(Character::isDigit) || (
                     code.split("\\.").length == 2 &&
                             code.split("\\.")[0].chars().allMatch(Character::isDigit) &&
