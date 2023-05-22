@@ -122,7 +122,7 @@ public class Main {
                 }
             } else if (code.equals(".")) { // print and pop one element from stack
                 System.out.print(stack.pop());
-            } else if (code.equals(".s")) { // print and pop one element from stack as string
+            } else if (code.equals(".c")) { // print and pop one element from stack as string
                 System.out.print((char) (float) stack.pop());
             } else if (code.equals("__")) { // dump stack (peek all)
                 while (!stack.isEmpty()) {
