@@ -47,8 +47,21 @@ public class Main {
                     for(String x : c.trim().split(" ")) {
                         blocks.get(current).getValue().add(x);
                     }
-                } else
-                    blocks.get(current).getValue().add(c);
+                } else {
+                    String[] sp = c.split("\"");
+                    int it = 0;
+                    for(String s : sp) {
+                        if(it % 2 == 1)
+                            blocks.get(current).getValue().add("\""+s+"\"");
+                        else {
+                            for (String x : s.trim().split(" ")) {
+                                if(!x.equals(""))
+                                    blocks.get(current).getValue().add(x);
+                            }
+                        }
+                        it++;
+                    }
+                }
             }
         }
 
@@ -236,11 +249,7 @@ public class Main {
                 interpret(c);
 
                 return;
-            } else if (code.chars().allMatch(Character::isDigit) || (
-                    code.split("\\.").length == 2 &&
-                            code.split("\\.")[0].chars().allMatch(Character::isDigit) &&
-                            code.split("\\.")[1].chars().allMatch(Character::isDigit)
-            )) {
+            } else if (isNum(code)) {
                 stack.push(Float.valueOf(code));
             } else if (blocks.containsKey(code)) {
                 stack.push(Float.valueOf(blocks.get(code).getKey()));
@@ -249,6 +258,21 @@ public class Main {
             }
         }
 
+    }
+
+    private static boolean isNum(String s) {
+        if(s.startsWith("-")) {
+            return s.substring(1).chars().allMatch(Character::isDigit) || (
+                    s.substring(1).split("\\.").length == 2 &&
+                            s.substring(1).split("\\.")[0].chars().allMatch(Character::isDigit) &&
+                            s.substring(1).split("\\.")[1].chars().allMatch(Character::isDigit)
+            );
+        }
+        return s.chars().allMatch(Character::isDigit) || (
+                        s.split("\\.").length == 2 &&
+                        s.split("\\.")[0].chars().allMatch(Character::isDigit) &&
+                        s.split("\\.")[1].chars().allMatch(Character::isDigit)
+        );
     }
 
     public static void error(String m) {
