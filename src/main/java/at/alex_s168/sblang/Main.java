@@ -4,19 +4,22 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Main {
 
     public static Stack<Float> stack;
+    public static Stack<Float> dataStack;
     public static HashMap<String, Map.Entry<Integer, List<String>>> blocks;
     public static List<String> tointerpret;
     public static boolean flag_condition = true;
+    public static HashMap<Integer, Map.Entry<String, String>> ioFiles; // id, name, path
 
-    public static void main(String[] args) {
-        if(args.length != 1)
-            error("Invalid arguments!");
+    private static int nextId;
+    private static int nextFileId;
 
-        Path filePath = Path.of(args[0]);
+    public static void blockify(String file) {
+        Path filePath = Path.of(file);
         String fileContent = "";
 
         try {
@@ -26,22 +29,33 @@ public class Main {
             error("File does not exist!");
         }
 
-        blocks = new HashMap<>();
-        blocks.put("EXIT", Map.entry(0, List.of("SYSTEM" ,"EXIT")));
-        blocks.put("DELAY", Map.entry(1, List.of("SYSTEM" ,"DELAY"))); // waits x ms (x is popped from the stack)
-
         String current = "";
-        int id = blocks.size();
         for(String line : fileContent.split("\n")) {
             if(line.trim().equals("") || line.trim().startsWith(";"))
                 continue;
             if(!line.startsWith("    ") && line.contains(":")) {
                 current = line.replace(":","").trim();
-                blocks.put(current, Map.entry(id, new ArrayList<>()));
-                id++;
+                blocks.put(current, Map.entry(nextId, new ArrayList<>()));
+                nextId++;
             } else {
-                if(current.equals(""))
-                    error("Code has to be INSIDE a block!");
+                if(current.equals("")) {
+                    final String c = line.trim().split(";")[0];
+                    if(c.startsWith("link ")) {
+                        final String tolink = c.substring("link ".length());
+                        blockify(tolink);
+                        continue;
+                    } else if(c.startsWith("io ")) {
+                        final String[] sp = c.substring("io ".length()).split(" ");
+                        if(sp[0].equals("file")) {
+                            ioFiles.put(nextFileId, Map.entry(sp[1], sp[2]));
+                            nextFileId++;
+                            continue;
+                        } else {
+                            error("Invalid IO operation!");
+                        }
+                    } else
+                        error("Code has to be INSIDE a block!");
+                }
                 final String c = line.substring(3).split(";")[0];
                 if(!c.contains("\"")) {
                     for(String x : c.trim().split(" ")) {
@@ -64,6 +78,25 @@ public class Main {
                 }
             }
         }
+    }
+
+    public static void main(String[] args) {
+        if(args.length != 1)
+            error("Invalid arguments!");
+
+        ioFiles = new HashMap<>();
+
+        blocks = new HashMap<>();
+        blocks.put("EXIT", Map.entry(0, List.of("SYSTEM" ,"EXIT"))); // exits the program
+        blocks.put("DELAY", Map.entry(1, List.of("SYSTEM" ,"DELAY"))); // waits x ms (x is popped from the stack)
+        blocks.put("FILE_SIZE", Map.entry(2, List.of("SYSTEM" ,"FILE_SIZE"))); // pushes the size of the content of the file with id x onto the stack (amount of chars) (x is popped from the stack)
+        blocks.put("FILE_READ", Map.entry(3, List.of("SYSTEM" ,"FILE_READ"))); // gets the content of the file with id x (in chars) and pushes the content one-by-one from left to right onto the data stack (x is popped from the stack)
+        blocks.put("FILE_WRITE", Map.entry(4, List.of("SYSTEM" ,"FILE_WRITE"))); // sets the content of the file with id x (in chars). content is popped from the data stack, converted to ascii and written from left to right. It writes y chars (x is popped from the stack; y is popped from the stack)
+
+        nextId = blocks.size();
+        nextFileId = ioFiles.size();
+
+        blockify(args[0]);
 
         String runBlock = "";
 
@@ -81,16 +114,15 @@ public class Main {
             runBlock = "main";
 
         stack = new Stack<>();
+        dataStack = new Stack<>();
 
         tointerpret = blocks.get(runBlock).getValue();
         while (tointerpret != null) {
-            interpret(tointerpret);
+            interpret(blocks.get(runBlock).getKey(), tointerpret);
         }
     }
 
-    static int calls = 0;
-
-    public static void interpret(List<String> codeblock) {
+    public static void interpret(int cbid, List<String> codeblock) {
         if (tointerpret == codeblock)
             tointerpret = null;
 
@@ -102,6 +134,42 @@ public class Main {
                     long start = System.currentTimeMillis();
                     while(System.currentTimeMillis() - start < delay) {
                         int x = 33333*3333; // idk why but just why not
+                    }
+                }
+                case "FILE_SIZE" -> {
+                    Path filePath = Path.of(ioFiles.get((int)(float)stack.pop()).getValue());
+                    try {
+                        final byte[] bytes = Files.readAllBytes(filePath);
+                        char[] cont = new String(bytes).toCharArray();
+                        stack.push((float) cont.length);
+                    } catch (IOException e) {
+                        stack.push(0f);
+                    }
+                }
+                case "FILE_READ" -> {
+                    Path filePath = Path.of(ioFiles.get((int)(float)stack.pop()).getValue());
+                    try {
+                        final byte[] bytes = Files.readAllBytes(filePath);
+                        char[] cont = new String(bytes).toCharArray();
+                        for(char c : cont)
+                            dataStack.push((float)c);
+                    } catch (IOException ignored) {}
+                }
+                case "FILE_WRITE" -> {
+                    Path filePath = Path.of(ioFiles.get((int)(float)stack.pop()).getValue());
+                    int a = (int)(float)stack.pop();
+                    StringBuilder c = new StringBuilder();
+                    for (int i = 0; i < a; i++) {
+                        c.append((char) (float) dataStack.pop());
+                    }
+                    System.out.println("towrite: "+c.toString());
+                    try {
+                        if (!Files.exists(filePath)) {
+                            Files.createFile(filePath);
+                        }
+                        Files.writeString(filePath, c.toString());
+                    } catch (IOException e) {
+                        error("File does not exist!");
                     }
                 }
             }
@@ -141,6 +209,14 @@ public class Main {
                 for (int i = stack.size()-1; i > -1; i--) {
                     System.out.println(stack.elementAt(i));
                 }
+            } else if (code.equals("d_")) { // dump data stack (peek all)
+                for (int i = dataStack.size()-1; i > -1; i--) {
+                    System.out.println(dataStack.elementAt(i));
+                }
+            } else if (code.equals(">d")) { // pops element from the stack and pushes it onto the data stack
+                dataStack.push(stack.pop());
+            } else if (code.equals("<d")) { // pops element from the data stack and pushes it onto the stack
+                stack.push(dataStack.pop());
             } else if (code.equals("_")) { // print and pop stack[-1] elements from the stack
                 int amount = (int) (float) stack.pop();
                 for (int i = 0; i < amount; i++) {
@@ -153,6 +229,8 @@ public class Main {
                 }
             } else if (code.equals("\\")) { // new line
                 System.out.println();
+            } else if (code.equals("id")) { // pushes the id of the current code block onto the stack
+                stack.push(stack.peek());
             } else if (code.equals("p")) { // gets the first element from stack without popping it (peek) and puts the value on the stack
                 stack.push(stack.peek());
             } else if (code.equals("p2")) { // gets the second element from stack without popping it (peek) and puts the value on the stack
@@ -167,11 +245,24 @@ public class Main {
                 }
             } else if (code.equals("s")) { // pushes the size of the stack onto the stack
                 stack.push((float) stack.size());
+            } else if (code.equals("sd")) { // pushes the size of the data stack onto the stack
+                stack.push((float) dataStack.size());
             } else if (code.equals("sw")) { // swaps the top 2 elements on the stack
                 float first = stack.pop();
                 float second = stack.pop();
                 stack.push(first);
                 stack.push(second);
+            } else if (code.equals("|")) { // arg1=pop()  arg2=pop()  push(arg1 | arg2) bitwise or
+                int a = (int) (float) stack.pop();
+                int b = (int) (float) stack.pop();
+                stack.push((float) (a | b));
+            } else if (code.equals("&")) { // arg1=pop()  arg2=pop()  push(arg1 & arg2) bitwise and
+                int a = (int) (float) stack.pop();
+                int b = (int) (float) stack.pop();
+                stack.push((float) (a & b));
+            } else if (code.equals("!")) { // arg1=pop() push(~arg1) bitwise not
+                int a = (int) (float) stack.pop();
+                stack.push((float) (~a));
             } else if (code.equals("+")) { // arg1=pop()  arg2=pop()  push(arg1+arg2)
                 float a = stack.pop();
                 float b = stack.pop();
@@ -238,26 +329,41 @@ public class Main {
                     continue;
                 int id = (int) (float) stack.pop();
                 List<String> c = null;
+                int i = 0;
                 for (Map.Entry<String, Map.Entry<Integer, List<String>>> e : blocks.entrySet()) {
                     if (e.getValue().getKey() == id) {
                         c = e.getValue().getValue();
+                        i = e.getValue().getKey();
                     }
                 }
                 if (c == null)
                     error("Code block with id " + id + " does not exist!");
                 assert c != null;
-                interpret(c);
-
-                return;
+                interpret(i, c);
             } else if (isNum(code)) {
                 stack.push(Float.valueOf(code));
             } else if (blocks.containsKey(code)) {
                 stack.push(Float.valueOf(blocks.get(code).getKey()));
+            } else if (ioFilesContains(code)) {
+                String finalCode = code;
+                ioFiles.forEach((k, v) -> {
+                    if(v.getKey().equals(finalCode))
+                        stack.push(Float.valueOf(k));
+                });
             } else {
                 error("Command " + code + " not found!");
             }
         }
 
+    }
+
+    private static boolean ioFilesContains(String name) {
+        AtomicBoolean ret = new AtomicBoolean(false);
+        ioFiles.forEach((k, v) -> {
+            if(v.getKey().equals(name))
+                ret.set(true);
+        });
+        return ret.get();
     }
 
     private static boolean isNum(String s) {
@@ -276,7 +382,7 @@ public class Main {
     }
 
     public static void error(String m) {
-        System.out.println("ERROR: "+m);
+        System.out.println("\nERROR: "+m);
         System.exit(-1);
     }
 
