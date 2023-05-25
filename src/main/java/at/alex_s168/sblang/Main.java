@@ -240,8 +240,7 @@ public class Main {
             } else if (code.equals("c-")) { // clears x elements from the top of the stack (x is stack[-1] popped)
                 int amount = (int) (float) stack.pop();
                 for (int i = 0; i < amount; i++) {
-                    if (stack.size() - 1 >= amount)
-                        stack.pop();
+                    stack.pop();
                 }
             } else if (code.equals("s")) { // pushes the size of the stack onto the stack
                 stack.push((float) stack.size());
